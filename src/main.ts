@@ -1,61 +1,70 @@
-import { App, AppMentionEvent } from '@slack/bolt';
-import { GenericMessageEvent } from '@slack/bolt/dist/types/events/message-events';
-import { Configuration, OpenAIApi } from 'openai';
-import { formatDistance } from 'date-fns';
+import 'dotenv/config';
 
-const imPrompt = process.env.OPENAI_IM_PROMPT;
-const returnDate = new Date(process.env.RETURN_DATE);
+import { App, GenericMessageEvent } from '@slack/bolt';
+import { OpenAI } from './OpenAI';
 
-const createGenericReply = (message: GenericMessageEvent | AppMentionEvent) => {
-  return `Sorry <@${ message.user }>, I'm on my holidays at the moment, back in ${formatDistance(new Date(), returnDate)})}`
-}
 
 async function main() {
-  const openai = new OpenAIApi(new Configuration({
-    apiKey: process.env.OPENAI_API_KEY,
-  }));
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   const app = new App({
     appToken: process.env.SLACK_APP_TOKEN,
     signingSecret: process.env.SLACK_SIGNING_SECRET,
     socketMode: true,
-    ignoreSelf: false,
     token: process.env.SLACK_USER_TOKEN,
-  })
+  });
 
   app.event('message', async ({ message, say }) => {
-    if (!message.subtype) {
-      const aiResponse = await openai.createChatCompletion({
-        model: 'gpt-3.5-turbo',
-        messages: [{
-          role: 'user',
-          content: `${imPrompt} "${message.text}"`
-        }],
-      });
+    if ((message as GenericMessageEvent).bot_id === process.env.SLACK_BOT_ID) return;
 
-      if (aiResponse.data.choices[0].message?.content) {
-        await say(aiResponse.data.choices[0].message?.content);
-      } else {
-        await say(createGenericReply(message));
+    if (!message.subtype) {
+      try {
+        const response = await openai.chatComplete(
+          `${ process.env.MAIN_SYSTEM_PROMPT }.${ process.env.DM_SYSTEM_PROMPT }`,
+          (message as GenericMessageEvent).text || 'Hello?'
+        );
+
+        await say({
+          text: `${ response } [Writen by 'Alex-ooo-gpt' not Alex]`,
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'plain_text',
+                text: response
+              }
+            },
+            {
+              type: 'context',
+              elements: [
+                {
+                  text: 'Writen by `Alex-ooo-gpt` not Alex',
+                  type: 'mrkdwn'
+                }
+              ]
+            }
+          ]
+        });
+      } catch (e) {
+        console.error('Message Error', e);
       }
     }
   });
 
-  app.event('app_mention', async ({ event, say }) => {
-    const aiResponse = await openai.createChatCompletion({
-      model: 'gpt-3.5-turbo',
-      messages: [{
-        role: 'user',
-        content: `${imPrompt} "${event.text}"`
-      }],
-    });
-
-    if (aiResponse.data.choices[0].message?.content) {
-      await say(aiResponse.data.choices[0].message?.content);
-    } else {
-      await say(createGenericReply(event));
-    }
-  });
+  // app.event('app_mention', async ({ event, say }) => {
+  //   console.log('App Mention', event);
+  //
+  //   try {
+  //     const response = await openai.chatComplete(
+  //       `${process.env.MAIN_SYSTEM_PROMPT}.${process.env.MENTION_SYSTEM_PROMPT}`,
+  //       event.text || 'Hello?'
+  //     );
+  //
+  //     await say(`<@${ event.user }> ${response}`);
+  //   } catch (e) {
+  //     console.error('Message Error', e);
+  //   }
+  // });
 
   await app.start();
 }
