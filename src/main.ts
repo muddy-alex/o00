@@ -25,7 +25,7 @@ async function main() {
         );
 
         await say({
-          text: `${ response } [Writen by 'Alex-ooo-gpt' not Alex]`,
+          text: `${ response } [Written by 'Alex-ooo-gpt' not Alex]`,
           blocks: [
             {
               type: 'section',
@@ -38,7 +38,7 @@ async function main() {
               type: 'context',
               elements: [
                 {
-                  text: 'Writen by `Alex-ooo-gpt` not Alex',
+                  text: 'Written by `Alex-ooo-gpt` not Alex',
                   type: 'mrkdwn'
                 }
               ]
